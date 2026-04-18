@@ -3,18 +3,21 @@ package github
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/auth"
 )
+
+//go:embed templates/workflow.yml
+var workflowTemplate embed.FS
 
 type WorkflowRun struct {
 	ID         int64  `json:"id"`
@@ -216,8 +219,8 @@ func (c *Client) DeleteWorkflowRun(ctx context.Context, repo string, runID int64
 
 // CreateWorkflowFileFromTemplate creates a workflow file from the embedded template
 func (c *Client) CreateWorkflowFileFromTemplate(ctx context.Context, repo, workflowPath string) error {
-	// Read the workflow template
-	templateContent, err := os.ReadFile("templates/workflow.yml")
+	// Read the workflow template from embedded filesystem
+	templateContent, err := workflowTemplate.ReadFile("templates/workflow.yml")
 	if err != nil {
 		return fmt.Errorf("failed to read workflow template: %w", err)
 	}
