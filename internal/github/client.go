@@ -168,21 +168,18 @@ func (c *Client) DeleteBranch(ctx context.Context, repo, branchName string) erro
 	return nil
 }
 
-// CreateWorkflowFile creates a workflow file in the repository on a dedicated branch
-func (c *Client) CreateWorkflowFile(ctx context.Context, repo, path, content, message string) error {
+// CreateFile creates a file in the repository on specified branch
+func (c *Client) CreateFile(ctx context.Context, repo, path, content, message, branch string) error {
 	parts := strings.Split(repo, "/")
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid repository format, expected 'owner/repo'")
 	}
 	owner, repoName := parts[0], parts[1]
 
-	// Use dedicated branch for gsecret workflows to keep main branch clean
-	branchName := "gsecret-retrieval"
-
 	payload := map[string]interface{}{
 		"message": message,
 		"content": content, // base64 encoded
-		"branch":  branchName,
+		"branch":  branch,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -193,10 +190,16 @@ func (c *Client) CreateWorkflowFile(ctx context.Context, repo, path, content, me
 	var result map[string]interface{}
 	err = c.client.Put(fmt.Sprintf("repos/%s/%s/contents/%s", owner, repoName, path), bytes.NewReader(payloadBytes), &result)
 	if err != nil {
-		return fmt.Errorf("failed to create workflow file: %w", err)
+		return fmt.Errorf("failed to create file: %w", err)
 	}
 
 	return nil
+}
+
+// CreateWorkflowFile creates a workflow file in the repository on a dedicated branch
+func (c *Client) CreateWorkflowFile(ctx context.Context, repo, path, content, message string) error {
+	branchName := "gsecret-retrieval"
+	return c.CreateFile(ctx, repo, path, content, message, branchName)
 }
 
 // DeleteWorkflowFile deletes a workflow file from the repository

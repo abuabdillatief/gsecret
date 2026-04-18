@@ -5,7 +5,7 @@
 
 # Variables
 BINARY_NAME=gsecret
-INSTALL_PATH=/usr/local/bin
+INSTALL_PATH=~/bin
 GO=go
 GOFLAGS=-ldflags="-s -w"
 

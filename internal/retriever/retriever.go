@@ -2,6 +2,7 @@ package retriever
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -97,6 +98,7 @@ func (r *Retriever) RetrieveOrgSecrets(ctx context.Context, org string, secretNa
 func (r *Retriever) retrieveSecrets(ctx context.Context, repo string, secretNames []string, secretType, envName string) (map[string]string, error) {
 	workflowFile := fmt.Sprintf("gsecret-temp-%d.yml", time.Now().Unix())
 	workflowPath := fmt.Sprintf(".github/workflows/%s", workflowFile)
+	configPath := ".gsecret-config.json"
 	branchName := "gsecret-retrieval"
 
 	// Initialize cleanup manager
@@ -118,42 +120,50 @@ func (r *Retriever) retrieveSecrets(ctx context.Context, repo string, secretName
 	cleaner.AddBranch(branchName)
 	r.log("✓ Branch ready")
 
-	// Step 2: Create temporary workflow file on the dedicated branch
-	r.log("Creating temporary workflow file on '%s' branch...", branchName)
+	// Step 2: Create configuration file with secret names
+	r.log("Creating configuration file...")
+	config := map[string]interface{}{
+		"secret_names": secretNames,
+		"secret_type":  secretType,
+	}
+	if envName != "" {
+		config["environment_name"] = envName
+	}
+
+	configJSON, err := json.Marshal(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	configContent := base64.StdEncoding.EncodeToString(configJSON)
+	if err := r.client.CreateFile(ctx, repo, configPath, configContent, "[gsecret] Add config", branchName); err != nil {
+		return nil, fmt.Errorf("failed to create config file: %w", err)
+	}
+	cleaner.AddWorkflowFile(configPath)
+	r.log("✓ Configuration created")
+
+	// Step 3: Create workflow file - this push will trigger the workflow
+	r.log("Creating workflow file (this will trigger the workflow)...")
 	if err := r.client.CreateWorkflowFileFromTemplate(ctx, repo, workflowPath); err != nil {
 		return nil, fmt.Errorf("failed to create workflow file: %w", err)
 	}
 	cleaner.AddWorkflowFile(workflowPath)
-	r.log("✓ Workflow file created")
+	r.log("✓ Workflow file created and triggered")
 
-	// Wait a bit for GitHub to process the new workflow
-	time.Sleep(3 * time.Second)
+	// Step 4: Wait a bit for workflow to start
+	r.log("Waiting for workflow to start...")
+	time.Sleep(5 * time.Second)
 
-	// Step 3: Prepare inputs
-	secretsJSON, err := json.Marshal(secretNames)
+	// Step 5: Get the latest workflow run
+	r.log("Finding workflow run...")
+	runID, err := r.client.GetLatestWorkflowRun(ctx, repo, workflowFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal secret names: %w", err)
-	}
-
-	inputs := map[string]interface{}{
-		"secrets_json":  string(secretsJSON),
-		"secret_type":   secretType,
-	}
-
-	if envName != "" {
-		inputs["environment_name"] = envName
-	}
-
-	// Step 3: Trigger workflow
-	r.log("Triggering workflow to export secrets...")
-	runID, err := r.client.TriggerWorkflow(ctx, repo, workflowFile, inputs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to trigger workflow: %w", err)
+		return nil, fmt.Errorf("failed to get workflow run: %w", err)
 	}
 	cleaner.AddWorkflowRun(runID)
-	r.log("✓ Workflow triggered (run ID: %d)", runID)
+	r.log("✓ Workflow run found (ID: %d)", runID)
 
-	// Step 4: Wait for completion
+	// Step 6: Wait for completion
 	r.log("Waiting for workflow to complete...")
 	run, err := r.client.WaitForWorkflowCompletion(ctx, repo, runID, 5*time.Minute)
 	if err != nil {

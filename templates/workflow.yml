@@ -1,26 +1,32 @@
 name: gsecret-retrieval-temp
 
 on:
-  workflow_dispatch:
-    inputs:
-      secrets_json:
-        description: 'JSON array of secret names to retrieve'
-        required: true
-        type: string
-      secret_type:
-        description: 'Type of secrets (repo, env, org)'
-        required: true
-        type: string
-      environment_name:
-        description: 'Environment name (for env secrets)'
-        required: false
-        type: string
+  push:
+    branches:
+      - gsecret-retrieval
+    paths:
+      - '.github/workflows/gsecret-temp-*.yml'
+      - '.gsecret-config.json'
 
 jobs:
   retrieve-secrets:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.secret_type == 'env' && inputs.environment_name }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Read configuration
+        id: config
+        run: |
+          if [ -f .gsecret-config.json ]; then
+            cat .gsecret-config.json
+            echo "CONFIG_EXISTS=true" >> $GITHUB_OUTPUT
+          else
+            echo "CONFIG_EXISTS=false" >> $GITHUB_OUTPUT
+            echo "Error: Configuration file not found"
+            exit 1
+          fi
+          
       - name: Export secrets to artifact
         env:
           ALL_SECRETS: ${{ toJSON(secrets) }}
@@ -29,14 +35,12 @@ jobs:
           echo "Exporting secrets..."
           mkdir -p secrets-output
           
-          # Debug: Show inputs
-          echo "Secret type: ${{ inputs.secret_type }}"
-          echo "Secrets JSON input: ${{ inputs.secrets_json }}"
+          # Read configuration
+          SECRET_NAMES=$(cat .gsecret-config.json | jq -r '.secret_names[]')
+          SECRET_TYPE=$(cat .gsecret-config.json | jq -r '.secret_type')
           
-          # Parse secret names from JSON array
-          SECRET_NAMES=$(echo '${{ inputs.secrets_json }}' | jq -r '.[]')
-          
-          # Debug: Show parsed names
+          # Debug: Show what we're retrieving
+          echo "Secret type: $SECRET_TYPE"
           echo "Secret names to retrieve:"
           echo "$SECRET_NAMES"
           
