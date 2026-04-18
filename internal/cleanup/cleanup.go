@@ -12,6 +12,7 @@ type Cleanup struct {
 	repo          string
 	workflowFiles []string
 	workflowRuns  []int64
+	branches      []string
 	verbose       bool
 }
 
@@ -21,6 +22,7 @@ func NewCleanup(client *github.Client, repo string) *Cleanup {
 		repo:          repo,
 		workflowFiles: make([]string, 0),
 		workflowRuns:  make([]int64, 0),
+		branches:      make([]string, 0),
 	}
 }
 
@@ -34,6 +36,10 @@ func (c *Cleanup) AddWorkflowFile(path string) {
 
 func (c *Cleanup) AddWorkflowRun(runID int64) {
 	c.workflowRuns = append(c.workflowRuns, runID)
+}
+
+func (c *Cleanup) AddBranch(name string) {
+	c.branches = append(c.branches, name)
 }
 
 func (c *Cleanup) log(format string, args ...interface{}) {
@@ -65,6 +71,17 @@ func (c *Cleanup) Cleanup(ctx context.Context) error {
 			errors = append(errors, fmt.Errorf("failed to delete workflow file %s: %w", path, err))
 		} else {
 			c.log("  ✓ Workflow file deleted")
+		}
+	}
+
+	// Delete branches (dedicated gsecret branches)
+	for _, branch := range c.branches {
+		c.log("  Deleting branch %s...", branch)
+		if err := c.client.DeleteBranch(ctx, c.repo, branch); err != nil {
+			// Don't fail if branch deletion fails - it might have other uses
+			c.log("  ⚠ Could not delete branch %s: %v", branch, err)
+		} else {
+			c.log("  ✓ Branch deleted")
 		}
 	}
 

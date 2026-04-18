@@ -97,6 +97,7 @@ func (r *Retriever) RetrieveOrgSecrets(ctx context.Context, org string, secretNa
 func (r *Retriever) retrieveSecrets(ctx context.Context, repo string, secretNames []string, secretType, envName string) (map[string]string, error) {
 	workflowFile := fmt.Sprintf("gsecret-temp-%d.yml", time.Now().Unix())
 	workflowPath := fmt.Sprintf(".github/workflows/%s", workflowFile)
+	branchName := "gsecret-retrieval"
 
 	// Initialize cleanup manager
 	cleaner := cleanup.NewCleanup(r.client, repo)
@@ -109,8 +110,16 @@ func (r *Retriever) retrieveSecrets(ctx context.Context, repo string, secretName
 		}
 	}()
 
-	// Step 1: Create temporary workflow file
-	r.log("Creating temporary workflow file...")
+	// Step 1: Create dedicated branch for gsecret workflows
+	r.log("Creating dedicated branch '%s'...", branchName)
+	if err := r.client.CreateBranch(ctx, repo, branchName); err != nil {
+		r.log("Note: Branch may already exist, continuing...")
+	}
+	cleaner.AddBranch(branchName)
+	r.log("✓ Branch ready")
+
+	// Step 2: Create temporary workflow file on the dedicated branch
+	r.log("Creating temporary workflow file on '%s' branch...", branchName)
 	if err := r.client.CreateWorkflowFileFromTemplate(ctx, repo, workflowPath); err != nil {
 		return nil, fmt.Errorf("failed to create workflow file: %w", err)
 	}
@@ -120,7 +129,7 @@ func (r *Retriever) retrieveSecrets(ctx context.Context, repo string, secretName
 	// Wait a bit for GitHub to process the new workflow
 	time.Sleep(3 * time.Second)
 
-	// Step 2: Prepare inputs
+	// Step 3: Prepare inputs
 	secretsJSON, err := json.Marshal(secretNames)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal secret names: %w", err)

@@ -181,21 +181,28 @@ gsecret get owner/repo DATABASE_URL --dry-run
 
 ## How It Works
 
-1. **Create Workflow**: Creates a temporary workflow file (`.github/workflows/gsecret-temp-TIMESTAMP.yml`)
-2. **Trigger**: Triggers the workflow via API with secret names as inputs
-3. **Export**: Workflow accesses secrets and exports them base64-encoded to artifacts
-4. **Download**: Downloads the artifact containing the encoded secrets
-5. **Decode**: Decodes the base64 values and returns plain text
-6. **Cleanup**: Automatically deletes workflow file, workflow run, and artifacts
+1. **Create Branch**: Creates a temporary branch `gsecret-retrieval` from your default branch
+2. **Create Workflow**: Pushes a temporary workflow file to that branch (`.github/workflows/gsecret-temp-TIMESTAMP.yml`)
+3. **Trigger**: Triggers the workflow via API with secret names as inputs
+4. **Export**: Workflow accesses secrets and exports them base64-encoded to artifacts
+5. **Download**: Downloads the artifact containing the encoded secrets
+6. **Decode**: Decodes the base64 values and returns plain text
+7. **Cleanup**: Automatically deletes:
+   - Workflow run and artifacts
+   - Workflow file
+   - The entire `gsecret-retrieval` branch
+
+**Your main branch stays completely clean** - all activity happens on an isolated branch that's deleted after use.
 
 ## Security Considerations
 
 ⚠️ **Important Security Notes**:
 
 - Secrets are briefly exposed in GitHub Actions artifacts (encrypted by GitHub)
-- Artifacts are deleted immediately after retrieval
-- Workflow runs are deleted to remove logs
-- The tool requires write access to create/delete workflows
+- All operations happen on an isolated `gsecret-retrieval` branch (keeps main clean)
+- The temporary branch is automatically deleted after retrieval
+- Workflow runs and artifacts are deleted immediately after retrieval
+- The tool requires write access to create/delete workflows and branches
 - Use with caution in production environments
 - Consider using in a dedicated test repository first
 - Secrets are transmitted through GitHub's infrastructure only
@@ -291,7 +298,7 @@ gsecret get test-user/test-repo TEST_SECRET
 
 ## Examples
 
-### Migrate secrets to another platform
+### Export all secrets
 
 ```bash
 # Export all secrets to .env file
@@ -323,15 +330,6 @@ gsecret get owner/repo --all --env staging -o staging-secrets.env
 - Secrets larger than GitHub's artifact size limits cannot be retrieved
 - Rate limits apply (GitHub API and Actions)
 
-## Future Enhancements
-
-- [ ] Batch retrieval across multiple repositories
-- [ ] Export to various formats (.env, JSON, YAML, HashiCorp Vault)
-- [ ] Integration with secret managers (AWS Secrets Manager, Azure Key Vault)
-- [ ] Web UI for easier management
-- [ ] Secret comparison/diff between environments
-- [ ] Scheduled backup automation
-- [ ] Encryption of local output files
 
 ## Contributing
 
@@ -377,3 +375,15 @@ make check          # Verify prerequisites first
 make install-user   # Install without sudo
 gsecret --help      # Test it works
 ```
+
+## Branch Isolation
+
+To keep your main branch clean, gsecret uses a dedicated temporary branch:
+
+- **Branch name**: `gsecret-retrieval`
+- **Created from**: Your default branch (main/master)
+- **Contains**: Only the temporary workflow file
+- **Lifetime**: Exists only during secret retrieval
+- **Cleanup**: Completely deleted after retrieval
+
+This means **zero commits to your main branch** - all gsecret activity is isolated and cleaned up automatically.

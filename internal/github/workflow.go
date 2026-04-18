@@ -30,11 +30,8 @@ func (c *Client) TriggerWorkflow(ctx context.Context, repo, workflowFile string,
 	}
 	owner, repoName := parts[0], parts[1]
 
-	// Get default branch
-	branch, err := c.GetDefaultBranch(ctx, repo)
-	if err != nil {
-		return 0, err
-	}
+	// Use dedicated branch for gsecret workflows
+	branch := "gsecret-retrieval"
 
 	payload := map[string]interface{}{
 		"ref":    branch,

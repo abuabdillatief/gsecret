@@ -105,7 +105,70 @@ func (c *Client) ListOrgSecrets(ctx context.Context, org string) ([]string, erro
 	return names, nil
 }
 
-// CreateWorkflowFile creates a workflow file in the repository
+// CreateBranch creates a new branch from the default branch
+func (c *Client) CreateBranch(ctx context.Context, repo, branchName string) error {
+	parts := strings.Split(repo, "/")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid repository format, expected 'owner/repo'")
+	}
+	owner, repoName := parts[0], parts[1]
+
+	// Get default branch SHA
+	defaultBranch, err := c.GetDefaultBranch(ctx, repo)
+	if err != nil {
+		return err
+	}
+
+	var branchInfo struct {
+		Commit struct {
+			SHA string `json:"sha"`
+		} `json:"commit"`
+	}
+
+	err = c.client.Get(fmt.Sprintf("repos/%s/%s/branches/%s", owner, repoName, defaultBranch), &branchInfo)
+	if err != nil {
+		return fmt.Errorf("failed to get branch info: %w", err)
+	}
+
+	// Create new branch
+	payload := map[string]interface{}{
+		"ref": fmt.Sprintf("refs/heads/%s", branchName),
+		"sha": branchInfo.Commit.SHA,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	var result map[string]interface{}
+	err = c.client.Post(fmt.Sprintf("repos/%s/%s/git/refs", owner, repoName), bytes.NewReader(payloadBytes), &result)
+	if err != nil {
+		// Branch might already exist, that's okay
+		return nil
+	}
+
+	return nil
+}
+
+// DeleteBranch deletes a branch
+func (c *Client) DeleteBranch(ctx context.Context, repo, branchName string) error {
+	parts := strings.Split(repo, "/")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid repository format, expected 'owner/repo'")
+	}
+	owner, repoName := parts[0], parts[1]
+
+	var result map[string]interface{}
+	err := c.client.Delete(fmt.Sprintf("repos/%s/%s/git/refs/heads/%s", owner, repoName, branchName), &result)
+	if err != nil {
+		return fmt.Errorf("failed to delete branch: %w", err)
+	}
+
+	return nil
+}
+
+// CreateWorkflowFile creates a workflow file in the repository on a dedicated branch
 func (c *Client) CreateWorkflowFile(ctx context.Context, repo, path, content, message string) error {
 	parts := strings.Split(repo, "/")
 	if len(parts) != 2 {
@@ -113,19 +176,13 @@ func (c *Client) CreateWorkflowFile(ctx context.Context, repo, path, content, me
 	}
 	owner, repoName := parts[0], parts[1]
 
-	// Get default branch first to commit to correct branch
-	var repoInfo struct {
-		DefaultBranch string `json:"default_branch"`
-	}
-	
-	if err := c.client.Get(fmt.Sprintf("repos/%s/%s", owner, repoName), &repoInfo); err != nil {
-		return fmt.Errorf("failed to get repository info: %w", err)
-	}
+	// Use dedicated branch for gsecret workflows to keep main branch clean
+	branchName := "gsecret-retrieval"
 
 	payload := map[string]interface{}{
 		"message": message,
 		"content": content, // base64 encoded
-		"branch":  repoInfo.DefaultBranch,
+		"branch":  branchName,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
