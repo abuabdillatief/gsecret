@@ -1,0 +1,44 @@
+# Secrets and sensitive files
+*.env
+secrets.*
+*.txt
+secrets-output/
+
+# Binaries for all platforms
+gsecret
+gsecret.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+coverage.out
+*.out
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+Thumbs.db
+.DS_Store
+*.log
+
+# Temporary files
+debug.log
+tmp/
+temp/
