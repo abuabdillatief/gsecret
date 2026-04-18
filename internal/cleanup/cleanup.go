@@ -64,26 +64,22 @@ func (c *Cleanup) Cleanup(ctx context.Context) error {
 		}
 	}
 
-	// Delete workflow files
-	for _, path := range c.workflowFiles {
-		c.log("  Deleting workflow file %s...", path)
-		if err := c.client.DeleteWorkflowFile(ctx, c.repo, path, "[gsecret] Remove temporary secret retrieval workflow"); err != nil {
-			errors = append(errors, fmt.Errorf("failed to delete workflow file %s: %w", path, err))
-		} else {
-			c.log("  ✓ Workflow file deleted")
-		}
-	}
-
-	// Delete branches (dedicated gsecret branches)
+	// Delete branches first - this removes all files on the branch
+	// (including .gsecret-config.json and workflow files)
 	for _, branch := range c.branches {
 		c.log("  Deleting branch %s...", branch)
 		if err := c.client.DeleteBranch(ctx, c.repo, branch); err != nil {
 			// Don't fail if branch deletion fails - it might have other uses
 			c.log("  ⚠ Could not delete branch %s: %v", branch, err)
 		} else {
-			c.log("  ✓ Branch deleted")
+			c.log("  ✓ Branch deleted (including all files on it)")
 		}
 	}
+
+	// Note: We don't delete workflow files individually because:
+	// 1. If they're on the temporary branch, deleting the branch removes them
+	// 2. If they're on main branch (shouldn't be), we don't want to touch main
+	// The workflowFiles list is kept for reference but not used in cleanup
 
 	if len(errors) > 0 {
 		return fmt.Errorf("cleanup completed with %d error(s): %v", len(errors), errors)
