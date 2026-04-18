@@ -1,0 +1,78 @@
+name: gsecret-retrieval-temp
+
+on:
+  workflow_dispatch:
+    inputs:
+      secrets_json:
+        description: 'JSON array of secret names to retrieve'
+        required: true
+        type: string
+      secret_type:
+        description: 'Type of secrets (repo, env, org)'
+        required: true
+        type: string
+      environment_name:
+        description: 'Environment name (for env secrets)'
+        required: false
+        type: string
+
+jobs:
+  retrieve-secrets:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.secret_type == 'env' && inputs.environment_name }}
+    steps:
+      - name: Export secrets to artifact
+        env:
+          ALL_SECRETS: ${{ toJSON(secrets) }}
+        run: |
+          set -e
+          echo "Exporting secrets..."
+          mkdir -p secrets-output
+          
+          # Debug: Show inputs
+          echo "Secret type: ${{ inputs.secret_type }}"
+          echo "Secrets JSON input: ${{ inputs.secrets_json }}"
+          
+          # Parse secret names from JSON array
+          SECRET_NAMES=$(echo '${{ inputs.secrets_json }}' | jq -r '.[]')
+          
+          # Debug: Show parsed names
+          echo "Secret names to retrieve:"
+          echo "$SECRET_NAMES"
+          
+          # Create output file
+          OUTPUT_FILE="secrets-output/secrets.txt"
+          touch "$OUTPUT_FILE"
+          
+          # Export each secret (base64 encoded for safety)
+          while IFS= read -r SECRET_NAME; do
+            if [ -z "$SECRET_NAME" ]; then
+              continue
+            fi
+            
+            echo "Processing secret: $SECRET_NAME"
+            
+            # Extract the specific secret value using jq from the ALL_SECRETS env var
+            EXTRACTED=$(echo "$ALL_SECRETS" | jq -r --arg name "$SECRET_NAME" '.[$name] // "__NOT_FOUND__"')
+            
+            if [ "$EXTRACTED" != "__NOT_FOUND__" ] && [ -n "$EXTRACTED" ] && [ "$EXTRACTED" != "null" ]; then
+              # Base64 encode the secret value
+              ENCODED_VALUE=$(echo -n "$EXTRACTED" | base64 -w 0)
+              echo "${SECRET_NAME}=${ENCODED_VALUE}" >> "$OUTPUT_FILE"
+              echo "✓ Exported $SECRET_NAME"
+            else
+              echo "${SECRET_NAME}=__NOT_FOUND__" >> "$OUTPUT_FILE"
+              echo "✗ Secret $SECRET_NAME not found or empty"
+            fi
+          done <<< "$SECRET_NAMES"
+          
+          echo ""
+          echo "Secrets exported successfully"
+          cat "$OUTPUT_FILE"
+          
+      - name: Upload secrets artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrieved-secrets
+          path: secrets-output/
+          retention-days: 1
