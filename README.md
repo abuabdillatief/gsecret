@@ -181,7 +181,7 @@ gsecret get owner/repo DATABASE_URL --dry-run
 
 ## How It Works
 
-1. **Create Branch**: Creates a temporary branch `gsecret-retrieval` from your default branch
+1. **Create Branch**: Creates a generated temporary branch like `gsecret-retrieval-generated-123456` from your default branch
 2. **Create Workflow**: Pushes a temporary workflow file to that branch (`.github/workflows/gsecret-temp-TIMESTAMP.yml`)
 3. **Trigger**: Triggers the workflow via API with secret names as inputs
 4. **Export**: Workflow accesses secrets and exports them base64-encoded to artifacts
@@ -190,7 +190,7 @@ gsecret get owner/repo DATABASE_URL --dry-run
 7. **Cleanup**: Automatically deletes:
    - Workflow run and artifacts
    - Workflow file
-   - The entire `gsecret-retrieval` branch
+   - The entire generated temporary branch
 
 **Your main branch stays completely clean** - all activity happens on an isolated branch that's deleted after use.
 
@@ -199,7 +199,7 @@ gsecret get owner/repo DATABASE_URL --dry-run
 ⚠️ **Important Security Notes**:
 
 - Secrets are briefly exposed in GitHub Actions artifacts (encrypted by GitHub)
-- All operations happen on an isolated `gsecret-retrieval` branch (keeps main clean)
+- All operations happen on an isolated generated branch like `gsecret-retrieval-generated-123456` (keeps main clean)
 - The temporary branch is automatically deleted after retrieval
 - Workflow runs and artifacts are deleted immediately after retrieval
 - The tool requires write access to create/delete workflows and branches
@@ -380,7 +380,7 @@ gsecret --help      # Test it works
 
 To keep your main branch clean, gsecret uses a dedicated temporary branch:
 
-- **Branch name**: `gsecret-retrieval`
+- **Branch name**: `gsecret-retrieval-generated-<random-number>`
 - **Created from**: Your default branch (main/master)
 - **Contains**: Only the temporary workflow file
 - **Lifetime**: Exists only during secret retrieval

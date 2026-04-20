@@ -3,7 +3,7 @@ name: gsecret-retrieval-temp
 on:
   push:
     branches:
-      - gsecret-retrieval
+      - __GSECRET_BRANCH_NAME__
     paths:
       - '.github/workflows/gsecret-temp-*.yml'
       - '.gsecret-config.json'

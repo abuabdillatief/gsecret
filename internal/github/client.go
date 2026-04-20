@@ -18,7 +18,7 @@ func NewClient() (*Client, error) {
 	opts := api.ClientOptions{
 		EnableCache: false,
 	}
-	
+
 	client, err := api.NewRESTClient(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub client: %w (ensure 'gh auth login' is configured)", err)
@@ -196,9 +196,8 @@ func (c *Client) CreateFile(ctx context.Context, repo, path, content, message, b
 	return nil
 }
 
-// CreateWorkflowFile creates a workflow file in the repository on a dedicated branch
-func (c *Client) CreateWorkflowFile(ctx context.Context, repo, path, content, message string) error {
-	branchName := "gsecret-retrieval"
+// CreateWorkflowFile creates a workflow file in the repository on a dedicated branch.
+func (c *Client) CreateWorkflowFile(ctx context.Context, repo, path, content, message, branchName string) error {
 	return c.CreateFile(ctx, repo, path, content, message, branchName)
 }
 
@@ -214,7 +213,7 @@ func (c *Client) DeleteWorkflowFile(ctx context.Context, repo, path, message str
 	var fileInfo struct {
 		SHA string `json:"sha"`
 	}
-	
+
 	if err := c.client.Get(fmt.Sprintf("repos/%s/%s/contents/%s", owner, repoName, path), &fileInfo); err != nil {
 		return fmt.Errorf("failed to get file info: %w", err)
 	}
@@ -249,7 +248,7 @@ func (c *Client) GetDefaultBranch(ctx context.Context, repo string) (string, err
 	var repoInfo struct {
 		DefaultBranch string `json:"default_branch"`
 	}
-	
+
 	if err := c.client.Get(fmt.Sprintf("repos/%s/%s", owner, repoName), &repoInfo); err != nil {
 		return "", fmt.Errorf("failed to get repository info: %w", err)
 	}

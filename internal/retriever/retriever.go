@@ -2,9 +2,11 @@ package retriever
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/mohammadrendra/gsecret/internal/cleanup"
@@ -99,7 +101,10 @@ func (r *Retriever) retrieveSecrets(ctx context.Context, repo string, secretName
 	workflowFile := fmt.Sprintf("gsecret-temp-%d.yml", time.Now().Unix())
 	workflowPath := fmt.Sprintf(".github/workflows/%s", workflowFile)
 	configPath := ".gsecret-config.json"
-	branchName := "gsecret-retrieval"
+	branchName, err := generatedBranchName()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate branch name: %w", err)
+	}
 
 	// Initialize cleanup manager
 	cleaner := cleanup.NewCleanup(r.client, repo)
@@ -144,7 +149,7 @@ func (r *Retriever) retrieveSecrets(ctx context.Context, repo string, secretName
 
 	// Step 3: Create workflow file - this push will trigger the workflow
 	r.log("Creating workflow file (this will trigger the workflow)...")
-	if err := r.client.CreateWorkflowFileFromTemplate(ctx, repo, workflowPath); err != nil {
+	if err := r.client.CreateWorkflowFileFromTemplate(ctx, repo, workflowPath, branchName); err != nil {
 		return nil, fmt.Errorf("failed to create workflow file: %w", err)
 	}
 	cleaner.AddWorkflowFile(workflowPath)
@@ -194,4 +199,13 @@ func (r *Retriever) retrieveSecrets(ctx context.Context, repo string, secretName
 	// Step 7: Cleanup happens via defer
 
 	return secrets, nil
+}
+
+func generatedBranchName() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("gsecret-retrieval-generated-%06d", n.Int64()), nil
 }

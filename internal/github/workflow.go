@@ -26,15 +26,12 @@ type WorkflowRun struct {
 }
 
 // TriggerWorkflow triggers a workflow_dispatch event
-func (c *Client) TriggerWorkflow(ctx context.Context, repo, workflowFile string, inputs map[string]interface{}) (int64, error) {
+func (c *Client) TriggerWorkflow(ctx context.Context, repo, workflowFile, branch string, inputs map[string]interface{}) (int64, error) {
 	parts := strings.Split(repo, "/")
 	if len(parts) != 2 {
 		return 0, fmt.Errorf("invalid repository format, expected 'owner/repo'")
 	}
 	owner, repoName := parts[0], parts[1]
-
-	// Use dedicated branch for gsecret workflows
-	branch := "gsecret-retrieval"
 
 	payload := map[string]interface{}{
 		"ref":    branch,
@@ -172,20 +169,20 @@ func (c *Client) DownloadArtifact(ctx context.Context, repo string, runID int64,
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
 	}
-	
+
 	// Get the artifact download URL (it's a redirect)
 	downloadURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/artifacts/%d/zip", owner, repoName, artifactID)
 	req, err := http.NewRequest("GET", downloadURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	// Add auth token
 	token, _ := auth.TokenForHost("github.com")
 	if token != "" {
 		req.Header.Set("Authorization", "token "+token)
 	}
-	
+
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download artifact: %w", err)
@@ -218,16 +215,17 @@ func (c *Client) DeleteWorkflowRun(ctx context.Context, repo string, runID int64
 }
 
 // CreateWorkflowFileFromTemplate creates a workflow file from the embedded template
-func (c *Client) CreateWorkflowFileFromTemplate(ctx context.Context, repo, workflowPath string) error {
+func (c *Client) CreateWorkflowFileFromTemplate(ctx context.Context, repo, workflowPath, branchName string) error {
 	// Read the workflow template from embedded filesystem
 	templateContent, err := workflowTemplate.ReadFile("templates/workflow.yml")
 	if err != nil {
 		return fmt.Errorf("failed to read workflow template: %w", err)
 	}
+	renderedTemplate := strings.ReplaceAll(string(templateContent), "__GSECRET_BRANCH_NAME__", branchName)
 
 	// Base64 encode the content
-	encodedContent := base64.StdEncoding.EncodeToString(templateContent)
+	encodedContent := base64.StdEncoding.EncodeToString([]byte(renderedTemplate))
 
 	// Create the workflow file
-	return c.CreateWorkflowFile(ctx, repo, workflowPath, encodedContent, "[gsecret] Add temporary secret retrieval workflow")
+	return c.CreateWorkflowFile(ctx, repo, workflowPath, encodedContent, "[gsecret] Add temporary secret retrieval workflow", branchName)
 }
