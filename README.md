@@ -27,6 +27,7 @@ Current workarounds are hacky (e.g., SSH into a VPS, create a workflow to log se
 - ✅ List secret names without values
 - ✅ Retrieve single or multiple secrets
 - ✅ Retrieve all secrets at once
+- ✅ Migrate repository secrets to another repository
 - ✅ JSON output format
 - ✅ Output to file with secure permissions
 - ✅ Automatic cleanup of temporary resources
@@ -155,6 +156,26 @@ gsecret get owner/repo DATABASE_URL --env production
 gsecret get owner/repo ORG_SECRET --org myorg
 ```
 
+### Migrate Repository Secrets
+
+Retrieve repository secrets from one repository and set them on another repository using the GitHub CLI:
+
+```bash
+# Single secret
+gsecret migrate owner/repo-a owner/repo-b DATABASE_URL
+
+# Multiple secrets
+gsecret migrate owner/repo-a owner/repo-b API_KEY DATABASE_URL SECRET_TOKEN
+
+# All repository secrets
+gsecret migrate owner/repo-a owner/repo-b --all
+
+# Preview which secrets would be migrated
+gsecret migrate owner/repo-a owner/repo-b --all --dry-run
+```
+
+Migration sets each target secret with `gh secret set` and streams the secret value through stdin.
+
 ### Output Options
 
 ```bash
@@ -194,6 +215,8 @@ gsecret get owner/repo DATABASE_URL --dry-run
 
 **Your main branch stays completely clean** - all activity happens on an isolated branch that's deleted after use.
 
+For `gsecret migrate`, the retrieved values are then written to the target repository with the GitHub CLI. The target repository's existing secrets with the same names are overwritten by GitHub.
+
 ## Security Considerations
 
 ⚠️ **Important Security Notes**:
@@ -203,6 +226,7 @@ gsecret get owner/repo DATABASE_URL --dry-run
 - The temporary branch is automatically deleted after retrieval
 - Workflow runs and artifacts are deleted immediately after retrieval
 - The tool requires write access to create/delete workflows and branches
+- Migration requires permission to set Actions secrets on the target repository
 - Use with caution in production environments
 - Consider using in a dedicated test repository first
 - Secrets are transmitted through GitHub's infrastructure only

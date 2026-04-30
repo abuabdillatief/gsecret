@@ -88,6 +88,18 @@ gsecret get owner/repo --all -o secrets.env
 gsecret get owner/repo DATABASE_URL --quiet
 ```
 
+### Migrate Secrets
+```bash
+# Migrate a single repository secret
+gsecret migrate owner/repo-a owner/repo-b DATABASE_URL
+
+# Migrate all repository secrets
+gsecret migrate owner/repo-a owner/repo-b --all
+
+# Preview which secrets would be migrated
+gsecret migrate owner/repo-a owner/repo-b --all --dry-run
+```
+
 ### Environment Secrets
 ```bash
 # List environment secrets
@@ -107,6 +119,8 @@ gsecret get owner/repo --all --env production
 3. **Export**: Workflow exports secrets as base64-encoded artifacts
 4. **Download**: Downloads and decodes the artifact
 5. **Cleanup**: Automatically removes workflow file, run, and artifacts
+
+For `gsecret migrate`, the decoded values are streamed into `gh secret set` for the target repository.
 
 ## Important Notes
 
@@ -148,6 +162,11 @@ gsecret get myorg/myrepo --all -o .env
 
 # Export as JSON for scripting
 gsecret get myorg/myrepo --all --json -o secrets.json
+```
+
+### Migrate to Another Repository
+```bash
+gsecret migrate myorg/source-repo myorg/target-repo --all
 ```
 
 ### Backup Environment Secrets
